@@ -1,5 +1,6 @@
 #!/bin/bash
-docker_name="justin8/archlinux:$(date +%Y.%m)"
+docker_name_untagged="justin8/archlinux"
+docker_name="$docker_name_untagged:$(date +%Y.%m)"
 script=$(mktemp)
 
 function add_command() {
@@ -37,6 +38,13 @@ rc=$?
 
 # Cleanup here regardless to allow exiting on failure in script
 docker rm arch_test &> /dev/null
+
+# Push if told to
+if [[ $1 == push ]]
+then
+	docker push $docker_name
+	docker push $docker_name_untagged
+fi
 
 rm -f "$script"
 if [[ $rc -eq 0 ]]
