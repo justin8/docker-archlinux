@@ -1,0 +1,24 @@
+#!/bin/bash
+docker_name="justin8/archlinux:$(date +%Y.%m)"
+
+function get_script() {
+	set -e
+	out=$(mktemp)
+	svn export --force https://github.com/docker/docker/trunk/contrib/mkimage-arch.sh "$out" > /dev/null
+	sed -i "s|import - archlinux|import - $docker_name|" "$out"
+	sed -i "s|-t archlinux|-t $docker_name|" "$out"
+	sed -i '/# udev/s|^|arch-chroot $ROOTFS curl -sO https://repo.dray.be/dray-repo-latest\narch-chroot $ROOTFS pacman -U --noconfirm dray-repo-latest\narch-chroot $ROOTFS sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf\n\n|' "$out"
+	set +e
+	echo "$out"
+}
+
+if [[ $EUID -ne 0 ]]
+then
+	echo "You must run this as root!"
+	exit 1
+fi
+
+script=$(get_script)
+bash -x "$script"
+rm -f "$script"
+echo "new_version=$docker_name"
