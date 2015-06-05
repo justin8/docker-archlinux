@@ -42,8 +42,13 @@ docker rm arch_test &> /dev/null
 # Push if told to
 if [[ $1 == push ]]
 then
-	docker push $docker_name
+	docker tag $docker_name $docker_name_untagged:latest
 	docker push $docker_name_untagged
+	if [[ $2 == clean ]]
+	then
+		docker rmi $docker_name
+		docker rmi $docker_name_untagged:latest
+	fi
 fi
 
 rm -f "$script"
