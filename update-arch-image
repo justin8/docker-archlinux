@@ -1,15 +1,23 @@
 #!/bin/bash
 docker_name="justin8/archlinux:$(date +%Y.%m)"
+script=$(mktemp)
+
+function add_command() {
+	command="$1"
+	sed -i "/# udev/s|^|arch-chroot \$ROOTFS $command\n|" $script
+}
 
 function get_script() {
-	set -e
-	out=$(mktemp)
-	svn export --force https://github.com/docker/docker/trunk/contrib/mkimage-arch.sh "$out" > /dev/null
-	sed -i "s|import - archlinux|import - $docker_name|" "$out"
-	sed -i "s|-t archlinux|-t $docker_name|" "$out"
-	sed -i '/# udev/s|^|arch-chroot $ROOTFS curl -sO https://repo.dray.be/dray-repo-latest\narch-chroot $ROOTFS pacman -U --noconfirm dray-repo-latest\narch-chroot $ROOTFS sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf\n\n|' "$out"
-	set +e
-	echo "$out"
+	svn export --force https://github.com/docker/docker/trunk/contrib/mkimage-arch.sh "$script" > /dev/null
+
+	# Set a trap after rootfs creation to cleanup if there is any errors to prevent filling temp
+	sed -i '/ROOTFS=/s/$/\ntrap "rm -rf $ROOTFS" SIGINT SIGTERM/' "$script"
+	# Change imported image name/tag
+	sed -i "s|import - archlinux|import - $docker_name|" "$script"
+	# Change test to run on new image name/tag
+	sed -i "s|-t archlinux|-n arch_test -t $docker_name|" "$script"
+	# Remove the test instance after completion
+	sed -i '/docker run/s/$/\ndocker rm arch_test/' "$script"
 }
 
 if [[ $EUID -ne 0 ]]
@@ -18,7 +26,23 @@ then
 	exit 1
 fi
 
-script=$(get_script)
+set -e
+get_script
+add_command "curl -sO https://repo.dray.be/dray-repo-latest"
+add_command "pacman -U --noconfirm dray-repo-latest"
+add_command 'sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf'
+set +e
+
 bash -x "$script"
+rc=$?
+
+# Cleanup here regardless to allow exiting on failure in script
+docker rm arch_test
+
 rm -f "$script"
-echo "new_version=$docker_name"
+if [[ $rc -eq 0 ]]
+then
+	echo "new_version=$docker_name"
+else
+	exit 1
+fi
