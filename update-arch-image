@@ -15,9 +15,7 @@ function get_script() {
 	# Change imported image name/tag
 	sed -i "s|import - archlinux|import - $docker_name|" "$script"
 	# Change test to run on new image name/tag
-	sed -i "s|-t archlinux|-n arch_test -t $docker_name|" "$script"
-	# Remove the test instance after completion
-	sed -i '/docker run/s/$/\ndocker rm arch_test/' "$script"
+	sed -i "s|-t archlinux|--name arch_test -t $docker_name|" "$script"
 }
 
 if [[ $EUID -ne 0 ]]
@@ -31,13 +29,14 @@ get_script
 add_command "curl -sO https://repo.dray.be/dray-repo-latest"
 add_command "pacman -U --noconfirm dray-repo-latest"
 add_command 'sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf'
+sed -i 's/.*Success.*/exit 1/' "$script"
 set +e
 
-bash -x "$script"
+bash "$script"
 rc=$?
 
 # Cleanup here regardless to allow exiting on failure in script
-docker rm arch_test
+docker rm arch_test &> /dev/null
 
 rm -f "$script"
 if [[ $rc -eq 0 ]]

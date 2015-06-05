@@ -1,4 +1,4 @@
-Archlinux 2015.03.02 minimal install
+Archlinux minimal install
 
 This is a image also has my repository added.
 
