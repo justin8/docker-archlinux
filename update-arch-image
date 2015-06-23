@@ -1,6 +1,6 @@
 #!/bin/bash
-docker_name_untagged="justin8/archlinux"
-docker_name="$docker_name_untagged:$(date +%Y.%m)"
+docker_name="justin8/archlinux"
+tag="$(date +%Y.%m)"
 script=$(mktemp)
 
 function add_command() {
@@ -14,9 +14,9 @@ function get_script() {
 	# Set a trap after rootfs creation to cleanup if there is any errors to prevent filling temp
 	sed -i '/ROOTFS=/s/$/\ntrap "rm -rf $ROOTFS" SIGINT SIGTERM/' "$script"
 	# Change imported image name/tag
-	sed -i "s|import - archlinux|import - $docker_name|" "$script"
+	sed -i "s|import - archlinux|import - $docker_name:$tag|" "$script"
 	# Change test to run on new image name/tag
-	sed -i "s|-t archlinux|--name arch_test -t $docker_name|" "$script"
+	sed -i "s|-t archlinux|--name arch_test -t $docker_name:$tag|" "$script"
 }
 
 if [[ $EUID -ne 0 ]]
@@ -32,6 +32,12 @@ add_command "pacman -U --noconfirm dray-repo-latest"
 add_command 'sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf'
 set +e
 
+echo
+echo "Removing '$docker_name:$tag' if it already exists"
+docker rm $(docker ps -a | grep "$docker_name:$tag" | awk '{print $1}')
+docker rmi $(docker images | grep "$docker_name" | grep "$tag" | awk '{print $3}')
+echo
+
 bash "$script"
 rc=$?
 
@@ -42,22 +48,26 @@ docker rm arch_test &> /dev/null
 if [[ $1 == push ]]
 then
 	echo
+	echo "Removing '$docker_name:latest' if it already exists"
+	docker rm $(docker ps -a | grep "$docker_name:latest" | awk '{print $1}')
+	docker rmi $(docker images | grep "$docker_name" | grep "latest" | awk '{print $3}')
+	echo "Tagging as '$docker_name:latest'"
+	docker tag -f $docker_name:$tag $docker_name:latest
 	echo "Pushing to repository..."
-	docker tag $docker_name $docker_name_untagged:latest
-	docker push $docker_name_untagged
+	docker push $docker_name
 	if [[ $2 == clean ]]
 	then
 		echo
 		echo "Cleaning up images..."
-		docker rmi $docker_name
-		docker rmi $docker_name_untagged:latest
+		docker rmi $docker_name:$tag
+		docker rmi $docker_name:latest
 	fi
 fi
 
 rm -f "$script"
 if [[ $rc -eq 0 ]]
 then
-	echo "new_version=$docker_name"
+	echo "new_version=$docker_name:$tag"
 else
 	exit 1
 fi
