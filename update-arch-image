@@ -30,6 +30,7 @@ get_script
 add_command "curl -sO https://repo.dray.be/dray-repo-latest"
 add_command "pacman -U --noconfirm dray-repo-latest"
 add_command 'sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf'
+add_command 'dirmngr </dev/null'
 set +e
 
 echo
