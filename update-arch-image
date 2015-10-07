@@ -35,8 +35,10 @@ set +e
 
 echo
 echo "Removing '$docker_name:$tag' if it already exists"
-docker rm $(docker ps -a | grep "$docker_name:$tag" | awk '{print $1}')
-docker rmi $(docker images | grep "$docker_name" | grep "$tag" | awk '{print $3}')
+rm_instances=$(docker ps -a | grep "$docker_name:$tag" | awk '{print $1}')
+rm_images=$(docker images | grep "$docker_name" | grep "$tag" | awk '{print $3}')
+[[ -n $rm_instances ]]&& docker rm $rm_instances
+[[ -n $rm_images ]] && docker rmi $rm_images
 echo
 
 bash "$script"
@@ -50,18 +52,21 @@ if [[ $1 == push ]]
 then
 	echo
 	echo "Removing '$docker_name:latest' if it already exists"
-	docker rm $(docker ps -a | grep "$docker_name:latest" | awk '{print $1}')
-	docker rmi $(docker images | grep "$docker_name" | grep "latest" | awk '{print $3}')
+	rm_instances=$(docker ps -a | grep "$docker_name:latest" | awk '{print $1}')
+	rm_images=$(docker images | grep "$docker_name" | grep "latest" | awk '{print $3}')
+	[[ -n $rm_instances ]]&& docker rm $rm_instances
+	[[ -n $rm_images ]] && docker rmi $rm_images
+
 	echo "Tagging as '$docker_name:latest'"
-	docker tag -f $docker_name:$tag $docker_name:latest
+	docker tag -f "$docker_name:$tag" "$docker_name:latest"
 	echo "Pushing to repository..."
 	docker push $docker_name
 	if [[ $2 == clean ]]
 	then
 		echo
 		echo "Cleaning up images..."
-		docker rmi $docker_name:$tag
-		docker rmi $docker_name:latest
+		docker rmi "$docker_name:$tag"
+		docker rmi "$docker_name:latest"
 	fi
 fi
 
