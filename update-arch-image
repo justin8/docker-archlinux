@@ -47,6 +47,8 @@ rc=$?
 # Cleanup here regardless to allow exiting on failure in script
 docker rm arch_test &> /dev/null
 
+[[ $rc -ne 0 ]] && exit $rc
+
 # Push if told to
 if [[ $1 == push ]]
 then
@@ -60,7 +62,10 @@ then
 	echo "Tagging as '$docker_name:latest'"
 	docker tag -f "$docker_name:$tag" "$docker_name:latest"
 	echo "Pushing to repository..."
-	docker push $docker_name
+	set -e
+	docker push "${docker_name}:latest"
+	docker push "${docker_name}:$tag"
+	set +e
 	if [[ $2 == clean ]]
 	then
 		echo
