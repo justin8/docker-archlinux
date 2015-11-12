@@ -1,23 +1,31 @@
 #!/bin/bash
+temp_docker_name="$(mktemp -u 'justin8/archlinux_temp_XXXXXXXXXX' | tr '[:upper:]' '[:lower:]')"
 docker_name="justin8/archlinux"
 tag="$(date +%Y.%m)"
 script=$(mktemp)
 
-function add_command() {
-	command="$1"
-	sed -i "/# udev/s|^|arch-chroot \$ROOTFS $command\n|" $script
+cleanup() {
+	rm "$script"
+	docker rmi -f "$temp_docker_name" &> /dev/null
 }
 
-function get_script() {
+add_command() {
+	command="$1"
+	sed -i "/# udev/s|^|arch-chroot \$ROOTFS $command\n|" "$script"
+}
+
+get_script() {
 	svn export --force https://github.com/docker/docker/trunk/contrib/mkimage-arch.sh "$script" > /dev/null
 
 	# Set a trap after rootfs creation to cleanup if there is any errors to prevent filling temp
 	sed -i '/ROOTFS=/s/$/\ntrap "rm -rf $ROOTFS" SIGINT SIGTERM/' "$script"
 	# Change imported image name/tag
-	sed -i "s|import - archlinux|import - $docker_name:$tag|" "$script"
+	sed -i "s|import - archlinux|import - $temp_docker_name:latest|" "$script"
 	# Change test to run on new image name/tag
-	sed -i "s|-t archlinux|--name arch_test -t $docker_name:$tag|" "$script"
+	sed -i "s|-t archlinux|--rm -t $temp_docker_name:latest|" "$script"
 }
+
+trap cleanup EXIT SIGINT SIGQUIT SIGTERM
 
 if [[ $EUID -ne 0 ]]
 then
@@ -25,60 +33,25 @@ then
 	exit 1
 fi
 
-set -e
 get_script
 add_command "curl -sO https://repo.dray.be/dray-repo-latest"
 add_command "pacman -U --noconfirm dray-repo-latest"
 add_command 'sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf'
 add_command 'dirmngr </dev/null'
-set +e
 
-echo
-echo "Removing '$docker_name:$tag' if it already exists"
-rm_instances=$(docker ps -a | grep "$docker_name:$tag" | awk '{print $1}')
-rm_images=$(docker images | grep "$docker_name" | grep "$tag" | awk '{print $3}')
-[[ -n $rm_instances ]]&& docker rm $rm_instances
-[[ -n $rm_images ]] && docker rmi $rm_images
-echo
+bash -x "$script"
 
-bash "$script"
-rc=$?
-
-# Cleanup here regardless to allow exiting on failure in script
-docker rm arch_test &> /dev/null
-
-[[ $rc -ne 0 ]] && exit $rc
+echo "Tagging as '$docker_name:$tag'"
+docker tag -f "$temp_docker_name:latest" "$docker_name:$tag"
 
 # Push if told to
 if [[ $1 == push ]]
 then
-	echo
-	echo "Removing '$docker_name:latest' if it already exists"
-	rm_instances=$(docker ps -a | grep "$docker_name:latest" | awk '{print $1}')
-	rm_images=$(docker images | grep "$docker_name" | grep "latest" | awk '{print $3}')
-	[[ -n $rm_instances ]]&& docker rm $rm_instances
-	[[ -n $rm_images ]] && docker rmi $rm_images
-
 	echo "Tagging as '$docker_name:latest'"
 	docker tag -f "$docker_name:$tag" "$docker_name:latest"
 	echo "Pushing to repository..."
-	set -e
 	docker push "${docker_name}:latest"
 	docker push "${docker_name}:$tag"
-	set +e
-	if [[ $2 == clean ]]
-	then
-		echo
-		echo "Cleaning up images..."
-		docker rmi "$docker_name:$tag"
-		docker rmi "$docker_name:latest"
-	fi
 fi
 
-rm -f "$script"
-if [[ $rc -eq 0 ]]
-then
-	echo "new_version=$docker_name:$tag"
-else
-	exit 1
-fi
+echo "new_version=$docker_name:$tag"
