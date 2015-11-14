@@ -6,6 +6,8 @@ docker_name="justin8/archlinux"
 tag="$(date +%Y.%m)"
 script=$(mktemp)
 
+cd "$(dirname "$(readlink -f "$0")")"
+
 cleanup() {
 	rm "$script"
 	docker rmi -f "$temp_docker_name" &> /dev/null
@@ -30,6 +32,11 @@ get_script() {
 	sed -i "s|import - archlinux|import - $temp_docker_name:latest|" "$script"
 	# Change test to run on new image name/tag
 	sed -i "s|-t archlinux|--rm -t $temp_docker_name:latest|" "$script"
+	# Change to use gcc-libs-multilib
+	base_packages="$(pacman -Sgq base | grep -v gcc-libs) gcc-libs-multilib"
+	base_packages=${base_packages//$'\n'/ }
+	sed -i "s/\bbase\b/$base_packages/" "$script"
+
 }
 
 trap cleanup EXIT SIGINT SIGQUIT SIGTERM
@@ -41,12 +48,9 @@ then
 fi
 
 get_script
-add_chroot_command "curl -sO https://repo.dray.be/dray-repo-latest"
-add_chroot_command "pacman -U --noconfirm dray-repo-latest"
-add_chroot_command 'sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf'
+
+add_raw_command 'cp mkimage-arch-pacman.conf $ROOTFS/etc/pacman.conf'
 add_chroot_command 'dirmngr </dev/null'
-add_raw_command "echo [multilib] >> \$ROOTFS/etc/pacman.conf"
-add_raw_command "echo Include = /etc/pacman.d/mirrorlist >> \$ROOTFS/etc/pacman.conf"
 
 bash -x "$script"
 
