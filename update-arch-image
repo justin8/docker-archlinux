@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 temp_docker_name="$(mktemp -u 'justin8/archlinux_temp_XXXXXXXXXX' | tr '[:upper:]' '[:lower:]')"
 docker_name="justin8/archlinux"
 tag="$(date +%Y.%m)"
@@ -9,9 +11,14 @@ cleanup() {
 	docker rmi -f "$temp_docker_name" &> /dev/null
 }
 
-add_command() {
-	command="$1"
+add_chroot_command() {
+	local command="$1"
 	sed -i "/# udev/s|^|arch-chroot \$ROOTFS $command\n|" "$script"
+}
+
+add_raw_command() {
+	local command="$1"
+	sed -i "/# udev/s|^|$command\n|" "$script"
 }
 
 get_script() {
@@ -34,10 +41,12 @@ then
 fi
 
 get_script
-add_command "curl -sO https://repo.dray.be/dray-repo-latest"
-add_command "pacman -U --noconfirm dray-repo-latest"
-add_command 'sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf'
-add_command 'dirmngr </dev/null'
+add_chroot_command "curl -sO https://repo.dray.be/dray-repo-latest"
+add_chroot_command "pacman -U --noconfirm dray-repo-latest"
+add_chroot_command 'sed -i "s/^CheckSpace/#CheckSpace/" /etc/pacman.conf'
+add_chroot_command 'dirmngr </dev/null'
+add_raw_command "echo [multilib] >> \$ROOTFS/etc/pacman.conf"
+add_raw_command "echo Include = /etc/pacman.d/mirrorlist >> \$ROOTFS/etc/pacman.conf"
 
 bash -x "$script"
 
