@@ -29,7 +29,7 @@ get_script() {
 	# Set a trap after rootfs creation to cleanup if there is any errors to prevent filling temp
 	sed -i '/ROOTFS=/s/$/\ntrap "rm -rf $ROOTFS" SIGINT SIGTERM/' "$script"
 	# Change imported image name/tag
-	sed -i "s|import - archlinux|import - $temp_docker_name:latest|" "$script"
+	sed -i "s|DOCKER_IMAGE_NAME=archlinux|DOCKER_IMAGE_NAME=$temp_docker_name:latest|" "$script"
 	# Change test to run on new image name/tag
 	sed -i "s|-t archlinux|--rm -t $temp_docker_name:latest|" "$script"
 	# Change to use gcc-libs-multilib
