@@ -23,6 +23,12 @@ add_raw_command() {
 	sed -i "/# udev/s|^|$command\n|" "$script"
 }
 
+check_package_available() {
+	if ! which $1 &>/dev/null; then
+		pacman -Sy --noconfirm $2 >&2
+	fi
+}
+
 get_script() {
 	svn export --force https://github.com/docker/docker/trunk/contrib/mkimage-arch.sh "$script" > /dev/null
 
@@ -41,30 +47,38 @@ get_script() {
 
 trap cleanup EXIT SIGINT SIGQUIT SIGTERM
 
-if [[ $EUID -ne 0 ]]
-then
-	echo "You must run this as root!"
-	exit 1
+# Run inside of docker if we aren't already
+if ! grep -q docker /proc/1/cgroup &>/dev/null; then
+	docker pull justin8/archlinux
+	docker run --rm --privileged -v /tmp/pacman-cache:/var/cache/pacman/pkg -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/build" justin8/archlinux bash -x "/build/$(basename "$0")"
+	exit $?
 fi
+
+
+check_package_available docker docker
+check_package_available svn svn
+check_package_available pacstrap arch-install-scripts
+check_package_available expect expect
 
 get_script
 
 add_raw_command 'cp mkimage-arch-pacman.conf $ROOTFS/etc/pacman.conf'
+add_raw_command "echo $tag > \$ROOTFS/version"
 add_chroot_command 'dirmngr </dev/null'
 
-bash -x "$script"
+bash -x "$script" >&2
 
-echo "Tagging as '$docker_name:$tag'"
-docker tag -f "$temp_docker_name:latest" "$docker_name:$tag"
+echo "Tagging as '$docker_name:$tag'" >&2
+docker tag "$temp_docker_name:latest" "$docker_name:$tag" >&2
 
 # Push if told to
 if [[ $1 == push ]]
 then
-	echo "Tagging as '$docker_name:latest'"
-	docker tag -f "$docker_name:$tag" "$docker_name:latest"
-	echo "Pushing to repository..."
-	docker push "${docker_name}:latest"
-	docker push "${docker_name}:$tag"
+	echo "Tagging as '$docker_name:latest'" >&2
+	docker tag "$docker_name:$tag" "$docker_name:latest" >&2
+	echo "Pushing to repository..." >&2
+	docker push "${docker_name}:latest" >&2
+	docker push "${docker_name}:$tag" >&2
 fi
 
 echo "new_version=$docker_name:$tag"
