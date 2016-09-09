@@ -6,7 +6,7 @@ docker_name="justin8/archlinux"
 tag="$(date +%Y.%m)"
 script=$(mktemp)
 
-cd "$(dirname "$(readlink -f "$0")")"
+cd "$(dirname "$0")"
 
 cleanup() {
 	rm "$script"
