@@ -48,7 +48,7 @@ get_script() {
 trap cleanup EXIT SIGINT SIGQUIT SIGTERM
 
 # Run inside of docker if we aren't already
-if ! grep -q docker /proc/1/cgroup &>/dev/null; then
+if ! which pacman &>/dev/null; then
 	docker pull justin8/archlinux
 	docker run --rm --privileged -v /tmp/pacman-cache:/var/cache/pacman/pkg -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/build" justin8/archlinux bash -x "/build/$(basename "$0")"
 	exit $?

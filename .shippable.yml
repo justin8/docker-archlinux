@@ -4,7 +4,7 @@ build:
     pre_ci:
         - env
         - apt-get install -y dos2unix
-        - version=$(./update-arch-image)
+        - version=$(./update-arch-image -x)
         - docker tag justin8/archlinux:$version archlinux_temp
         - docker images
     ci:
