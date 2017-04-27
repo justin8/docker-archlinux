@@ -10,4 +10,4 @@ phases:
       - credstash get docker-credentials > ~/.docker/config.json
   build:
     commands:
-      - bash update-arch-image push clean-versioned
+      - bash update-arch-image push
