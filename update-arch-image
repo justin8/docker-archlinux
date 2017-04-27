@@ -11,6 +11,7 @@ cd "$(dirname "$0")"
 cleanup() {
 	rm "$script"
 	docker rmi -f "$temp_docker_name" &> /dev/null
+	exit 0
 }
 
 add_chroot_command() {
@@ -45,7 +46,17 @@ trap cleanup EXIT SIGINT SIGQUIT SIGTERM
 if ! [[ -e /version ]]; then
 	docker pull justin8/archlinux
 	docker run --rm --privileged -v /tmp/pacman-cache:/var/cache/pacman/pkg -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/build" justin8/archlinux bash -x "/build/$(basename "$0")"
-	exit $?
+
+	# Push if told to
+	if [[ $1 == push ]]
+	then
+		echo "Tagging as '$docker_name:latest'" >&2
+		docker tag "$docker_name:$tag" "$docker_name:latest" >&2
+		echo "Pushing to repository..." >&2
+		docker push "${docker_name}:latest" >&2
+		docker push "${docker_name}:$tag" >&2
+	fi
+	exit 0
 fi
 
 pacman -Syu --noconfirm docker svn arch-install-scripts expect
@@ -58,15 +69,5 @@ bash -x "$script" >&2
 
 echo "Tagging as '$docker_name:$tag'" >&2
 docker tag "$temp_docker_name:latest" "$docker_name:$tag" >&2
-
-# Push if told to
-if [[ $1 == push ]]
-then
-	echo "Tagging as '$docker_name:latest'" >&2
-	docker tag "$docker_name:$tag" "$docker_name:latest" >&2
-	echo "Pushing to repository..." >&2
-	docker push "${docker_name}:latest" >&2
-	docker push "${docker_name}:$tag" >&2
-fi
 
 echo "new_version=$docker_name:$tag"
