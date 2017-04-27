@@ -1,0 +1,13 @@
+version: 0.1
+
+phases:
+  install:
+    commands:
+      - pip install credstash
+  pre_build:
+    commands:
+      - mkdir -p ~/.docker
+      - credstash get docker-credentials > ~/.docker/config.json
+  build:
+    commands:
+      - bash update-arch-image push clean-versioned
