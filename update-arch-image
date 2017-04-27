@@ -10,7 +10,7 @@ cd "$(dirname "$0")"
 
 cleanup() {
 	rm "$script"
-	docker rmi -f "$temp_docker_name" &> /dev/null
+	docker rmi -f "$temp_docker_name" &> /dev/null || :
 	exit 0
 }
 
